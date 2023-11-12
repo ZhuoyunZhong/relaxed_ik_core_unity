@@ -14,7 +14,14 @@ fn main() {
     io::stdin().read_line(&mut name_buf).expect("Failed to read line");
     let name: String = name_buf.trim().to_string();
 
-    let mut r = relaxed_ik::RelaxedIK::from_info_file_name(format!("{}_info.yaml", name), 1);
+    // Update to check if the file exists
+    let mut r = match relaxed_ik::RelaxedIK::from_info_file_name(format!("{}_info.yaml", name), 1) {
+        Ok(relaxed_ik) => relaxed_ik,
+        Err(e) => {
+            println!("Error occurred: {}", e);
+            loop { thread::sleep(time::Duration::from_millis(1000)); }
+        }
+    };
 
     let arc = Arc::new(Mutex::new(EEPoseGoalsSubscriber::new()));
     let mut g = arc.lock().unwrap();

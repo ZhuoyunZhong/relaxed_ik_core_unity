@@ -23,14 +23,28 @@ pub struct RelaxedIK {
 }
 
 impl RelaxedIK {
-    pub fn from_info_file_name(info_file_name: String, mode: usize) -> Self {
+    // Update the loading configuration helper functions
+    // so that file not found error can be handled
+    pub fn from_info_file_name(info_file_name: String, mode: usize) -> Result<Self, std::io::Error> {
         let path_to_src = get_path_to_src();
         let fp = path_to_src + "relaxed_ik_core/config/info_files/" + info_file_name.as_str();
         RelaxedIK::from_yaml_path(fp.clone(), mode.clone())
     }
 
-    pub fn from_yaml_path(fp: String, mode: usize) -> Self {
-        let vars = RelaxedIKVars::from_yaml_path(fp.clone(), true, true);
+    pub fn from_yaml_path(fp: String, mode: usize) -> Result<Self, std::io::Error> {
+        // Check if yaml file exists
+        let result = std::panic::catch_unwind(
+            std::panic::AssertUnwindSafe(|| {
+                RelaxedIKVars::from_yaml_path(fp.clone(), true, true)
+            })
+        );
+        let vars = match result {
+            Ok(vars) => vars,
+            Err(_) => return Err(
+                std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")
+            ),
+        };
+
         let mut om = ObjectiveMaster::relaxed_ik(vars.robot.num_chains);
         if mode == 0 {
             om = ObjectiveMaster::standard_ik(vars.robot.num_chains);
@@ -39,10 +53,10 @@ impl RelaxedIK {
         let groove = OptimizationEngineOpen::new(vars.robot.num_dof.clone());
         let groove_nlopt = OptimizationEngineNLopt::new();
 
-        Self{vars, om, groove, groove_nlopt}
+        Ok(Self { vars, om, groove, groove_nlopt })
     }
 
-    pub fn from_loaded(mode: usize) -> Self {
+    pub fn from_loaded(mode: usize) -> Result<Self, std::io::Error> {
         let path_to_src = get_path_to_src();
         let fp1 = path_to_src +  "relaxed_ik_core/config/loaded_robot";
         let info_file_name = get_file_contents(fp1).trim().to_string();
